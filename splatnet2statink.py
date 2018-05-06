@@ -237,6 +237,10 @@ def main():
 	set_language()
 
 	parser = argparse.ArgumentParser()
+	parser.add_argument("-c", required=False, action="store_true",
+						help="console mode; write JSON data to stdout")
+	parser.add_argument("-n", dest="battles", required=False, type=int,
+						help="number of battles to upload (1-50)")
 	parser.add_argument("-M", dest="N", required=False, nargs="?", action="store",
 						help="monitoring mode; pull data every N secs (default: 300)", const=300)
 	parser.add_argument("-r", required=False, action="store_true",
@@ -267,9 +271,11 @@ def main():
 	is_s = parser_result.s
 	is_t = parser_result.t
 	is_r = parser_result.r
+	is_c = parser_result.c
 	filename = parser_result.filename
+	num_battles = parser_result.battles
 
-	return m_value, is_s, is_t, is_r, filename
+	return m_value, is_s, is_t, is_r, is_c, filename, num_battles
 
 def load_results():
 	'''Returns the data we need from the results JSON, if possible.'''
@@ -476,20 +482,22 @@ def get_num_battles():
 				continue
 
 		set_gender()
+		return results
 
-		try:
-			n = int(input("Number of recent battles to upload (0-50)? "))
-		except ValueError:
-			print("Please enter an integer between 0 and 50. Exiting.")
-			exit(1)
-		if n < 1:
-			print("Exiting without uploading anything.")
-			exit(0)
-		elif n > 50:
-			print("SplatNet 2 only stores the 50 most recent battles. Exiting.")
-			exit(1)
-		else:
-			return n, results
+def prompt_num_battles(n=None):
+	try:
+		n = n or int(input("Number of recent battles to upload (0-50)? "))
+	except ValueError:
+		print("Please enter an integer between 0 and 50. Exiting.")
+		exit(1)
+	if n < 1:
+		print("Exiting without uploading anything.")
+		exit(0)
+	elif n > 50:
+		print("SplatNet 2 only stores the 50 most recent battles. Exiting.")
+		exit(1)
+	else:
+		return n
 
 def set_scoreboard(payload, battle_number, mystats, s_flag, battle_payload=None):
 	'''Returns a new payload with the players key (scoreboard) present.'''
@@ -1157,16 +1165,17 @@ def blackout(image_result_content, players):
 	return scoreboard
 
 if __name__ == "__main__":
-	m_value, is_s, is_t, is_r, filename = main()
+	m_value, is_s, is_t, is_r, is_c, filename, num_battles = main()
 	if is_s:
 		from PIL import Image, ImageDraw
 	if m_value != -1: # m flag exists
-		monitor_battles(is_s, is_t, is_r, m_value, debug)
+		monitor_battles(is_s, is_t, is_r, m_value, debug or is_c)
 	elif is_r: # r flag exists without m, so run only the recent battle upload
-		populate_battles(is_s, is_t, is_r, debug)
+		populate_battles(is_s, is_t, is_r, debug or is_c)
 	else:
-		n, results = get_num_battles()
+		results = get_num_battles()
+		n = num_battles or prompt_num_battles()
 		for i in reversed(range(n)):
-			post_battle(i, results, is_s, is_t, m_value, True if i == 0 else False, debug)
+			post_battle(i, results, is_s, is_t, m_value, True if i == 0 else False, debug or is_c)
 		if debug:
 			print("")
